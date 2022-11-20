@@ -33,6 +33,7 @@ Bonus Question:
 2. Velociraptor
 3. YARA
 4. PowerShell
+5. Volatility 2
 
 ---
 
@@ -165,3 +166,37 @@ Pivoting this information, it would be interesting to know the activities perfor
 - Webshell was observed at (written via SQLi) `/xampp/htdocs/tmpudvfh.php`, `/htdocs/tmpudvfh.php`, `/tmpudvfh.php`, `/dvwa/hackable/uploads/phpshell.php` (probably uploaded via `POST /dvwa/vulnerabilities/upload/`) and `/dvwa/c99.php`
 
 ---
+
+## 4. Memory Forensics
+
+Here we will use **Volatility 2** as our memory forensics tool.
+
+```
+vol2 imageinfo -f memdump.mem
+vol2 -f memdump.mem --profile=Win2008SP1x86 cmdscan
+```
+
+Check command line history using `cmdscan`:
+
+```
+vol2 -f memdump.mem --profile=Win2008SP1x86 cmdscan
+```
+
+![image](https://user-images.githubusercontent.com/38507703/202913137-db60f280-523a-4165-b5b6-eb52a67e4da9.png)
+
+As shown, the attacker ran some commands for:
+
+1. Add new users `user1`
+2. Add `user1` into the user group `Remote Desktop Users`
+3. Use `netsh firewall` to enable remote desktop
+
+Inspect the Process Tree using `pstree`:
+
+```
+vol2 -f memdump.mem --profile=Win2008SP1x86 pstree
+```
+
+![image](https://user-images.githubusercontent.com/38507703/202913270-a4d81782-55e8-4ff6-9fb6-bd39a39bd9cd.png)
+
+- No abnormal Parent-Child processes
+
