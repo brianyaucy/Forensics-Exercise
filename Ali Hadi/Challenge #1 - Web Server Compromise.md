@@ -32,6 +32,7 @@ Bonus Question:
 1. Arsenal Image Mounter (Free Version)
 2. Velociraptor
 3. YARA
+4. PowerShell
 
 ---
 
@@ -79,6 +80,88 @@ Get-ChildItem E:\xampp\htdocs\DVWA\c99.php | Select *Time*
 
 ![image](https://user-images.githubusercontent.com/38507703/202908936-b9cedd78-eb1c-4605-8194-57302b77b862.png)
 
-- We may assume the webshell was written on or before **3 Sept 2015 15:20:45**.
+- We may assume the webshell was written on or before **3 Sept 2015 15:20:45 (+0800)** / **3 Sept 2015 07:20:45 UTC**.
+
+---
+
+## 3. Web logs collection
+
+Since this is a web server, we should collect the web access logs and investigate. For **xampp**, the access logs locate in:
+
+- `E:\xampp\apache\logs`
+
+![image](https://user-images.githubusercontent.com/38507703/202909089-883ae834-e5bd-4e6a-b471-c5014374b68b.png)
+
+We can use [apache-log-to-csv](https://github.com/isonet/apache-log-to-csv) (code in Python 2) (required module apache-log, parser, argparse, csv) to parse the access log to CSV format.
+
+```python2
+import csv
+import apache_log_parser
+import argparse
+
+
+def main(**kwargs):
+
+    print('Converting, please wait...')
+
+    line_parser = apache_log_parser.make_parser(kwargs['format'])
+    header = True
+
+    with open(kwargs['input'], 'rb') as inFile, open(kwargs['output'], 'w') as outFile:
+
+        lines = inFile.readlines()
+        writer = csv.writer(outFile, delimiter=',')
+
+        for line in lines:
+            try:
+                log_line_data = line_parser(line)
+            except apache_log_parser.LineDoesntMatchException as ex:
+                print('The format specified does not match the log file. Aborting...')
+                print('Line: ' + ex.log_line + 'RegEx: ' + ex.regex)
+                exit()
+
+            if header:
+                writer.writerow(list(log_line_data.keys()))
+                header = False
+            else:
+                writer.writerow(list(log_line_data.values()))
+
+    print('Conversion finished.')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Convert Apache logs to csv', version='%(prog)s 1.0')
+    parser.add_argument('format', type=str, help='Apache log format (see http://httpd.apache.org/docs/2.2/logs.html)')
+    parser.add_argument('input', type=str, help='Input log file ex. /var/log/apache/access.log')
+    parser.add_argument('output', type=str, help='Output csv file ex. ~/accesslog.csv')
+    args = parser.parse_args()
+    main(**vars(args))
+```
+
+To convert:
+
+```
+pip2 install apache_log_parser argparse
+python2 ~/parsers/apache-to-csv.py "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" access.log access.csv
+```
+
+As we know the suspicious webshell **c99.php**, check the http request containing `c99.php` around **3 Sept 2015 07:20:45 UTC**.
+
+![image](https://user-images.githubusercontent.com/38507703/202911493-917560a4-a656-45bc-8bd8-51f809f706d8.png)
+
+As shown, the attacker at **192.168.56.102** accessed the webshell from **3 Sept 2015 07:19:32 - 07:21:37 UTC**.
+
+Pivoting this information, it would be interesting to know the activities performed by **192.168.56.102**:
+
+![image](https://user-images.githubusercontent.com/38507703/202911701-364b6ed0-7b92-412e-af06-c02003b16fa5.png)
+
+![image](https://user-images.githubusercontent.com/38507703/202911766-26a86162-7842-45af-99b6-8c1baae83abe.png)
+
+![image](https://user-images.githubusercontent.com/38507703/202911810-e767ea8e-f129-4118-b584-95084cafaa6e.png)
+
+- In so, the earliest attack on **3 Sept 2015** was at **3 Sept 2015 06:20:00 UTC**
+- XSS at `/dvwa/vulnerabilities/xss_r/` was observed
+- SQLi at `/dvwa/vulnerabilities/sqli/` was observed
+- Webshell was observed at (written via SQLi) `/xampp/htdocs/tmpudvfh.php`, `/htdocs/tmpudvfh.php`, `/tmpudvfh.php`, `/dvwa/hackable/uploads/phpshell.php` (probably uploaded via `POST /dvwa/vulnerabilities/upload/`) and `/dvwa/c99.php`
 
 ---
